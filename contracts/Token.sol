@@ -85,6 +85,11 @@ contract Token is ERC20 {
         _;
     }
 
+    modifier onlyAuthorized(){
+        require(msg.sender != address(0), "Acesso negado: Usuario nao autorizado!");
+        _;
+    }
+
     modifier voting(){
         require(true == votingActive, "Votacao nao iniciada!");
         _;
@@ -93,16 +98,18 @@ contract Token is ERC20 {
     event TokenGenerated(string codinome, address codinomeAddress,uint256 amont);
 
     function issueToken(string memory codinome,  uint256 amount) public onlyOwnerOrTeacher() {
+        require(user[codinome].ad != address(0), "Usuario nao encontrado!");
         _mint(user[codinome].ad, amount);
         emit TokenGenerated(codinome, user[codinome].ad ,amount);
     }
 
     event RegisteredVote(string codinome, uint256 amount);
 
-    function vote(string memory codinome, uint256 amount) public voting(){
+    function vote(string memory codinome, uint256 amount) public voting() onlyAuthorized() {
         string memory name;
         require(msg.sender != user[codinome].ad, "Nao pode votar em si mesmo!");
         require(amount <= 2*(10**18), "Limite maximo de saTurings atingido!");
+        require(user[codinome].ad != address(0), "Usuario nao encontrado!");
 
         for(uint i=0; i<student.length; i++){
             if(user[student[i]].ad == msg.sender){
