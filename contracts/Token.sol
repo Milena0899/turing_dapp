@@ -8,14 +8,14 @@ pragma solidity ^0.8.20;
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-
-
 // This is the main building block for smart contracts.
 contract Token is ERC20 {
     struct User {
         address ad;
         mapping(string => address) voted;
     }
+
+    mapping(string => User) public user;
 
     bool public votingActive;
     
@@ -42,8 +42,6 @@ contract Token is ERC20 {
             'student17',
             'student18'
         ];
-
-    mapping(string => User) public user;
 
     /**
      * Contract initialization.
@@ -72,7 +70,6 @@ contract Token is ERC20 {
             0xdD2FD4581271e230360230F9337D5c0430Bf44C0,
             0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199
         ];
-
         for(uint i=0; i<addresses.length; i++){
             user[student[i]].ad = addresses[i]; 
         }
@@ -91,26 +88,35 @@ contract Token is ERC20 {
     }
 
     modifier voting(){
-        require(true == votingActive, "Votacao nao iniciada!");
+        require(votingActive == true, "Votacao nao iniciada!");
         _;
     }
 
-    event TokenGenerated(string codinome, address codinomeAddress,uint256 amont);
+    function isAdmin(address codinome_ad) public view returns (bool) {
+        require(msg.sender == owner || msg.sender == teacher, "Usuario nao autorizado!");
+        if(codinome_ad == owner || codinome_ad == teacher){
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    event TokenGenerated(address msgSender, address msgRecevier, uint256 amount);
 
     function issueToken(string memory codinome,  uint256 amount) public onlyOwnerOrTeacher() {
         require(user[codinome].ad != address(0), "Usuario nao encontrado!");
         _mint(user[codinome].ad, amount);
-        emit TokenGenerated(codinome, user[codinome].ad ,amount);
+        emit TokenGenerated(msg.sender, user[codinome].ad, amount);
     }
 
-    event RegisteredVote(string codinome, uint256 amount);
+    event RegisteredVote(address msgSender, address msgRecevier, uint256 amount);
 
-    function vote(string memory codinome, uint256 amount) public voting() onlyAuthorized() {
-        string memory name;
-        require(msg.sender != user[codinome].ad, "Nao pode votar em si mesmo!");
+    function vote(string memory codinome, uint256 amount) voting() public onlyAuthorized() {
         require(amount <= 2*(10**18), "Limite maximo de saTurings atingido!");
+        require(msg.sender != user[codinome].ad, "Nao pode votar em si mesmo!");
         require(user[codinome].ad != address(0), "Usuario nao encontrado!");
-
+        
+        string memory name;
         for(uint i=0; i<student.length; i++){
             if(user[student[i]].ad == msg.sender){
                 name = student[i];
@@ -123,8 +129,7 @@ contract Token is ERC20 {
         
         _mint(msg.sender, 2*(10**10));
 
-        emit RegisteredVote(codinome, amount);
-
+        emit RegisteredVote(msg.sender, user[codinome].ad, amount);
     }
 
     function votingOn() public onlyOwnerOrTeacher() {
@@ -134,4 +139,28 @@ contract Token is ERC20 {
     function votingOff()  public onlyOwnerOrTeacher() {
         votingActive = false;
     }
+
+    function getBalances() public view returns (string[] memory, uint256[] memory) {
+        string[] memory codinomes = new string[](student.length);
+        uint256[] memory balances = new uint256[](student.length);
+
+        for (uint i = 0; i < student.length; i++) {
+            address userAddr = user[student[i]].ad; 
+
+            if (userAddr != address(0)) { // Evita acessar um usuário inexistente
+                codinomes[i] = student[i];
+                balances[i] = balanceOf(userAddr);
+            }
+        }
+        return (codinomes, balances);
+    }
+
+    function getUser(address addrSender) public view returns ( string memory ) {
+        for (uint i = 0; i < student.length; i++) {
+            if (user[student[i]].ad == msg.sender) {
+                return student[i];
+            }
+        }
+    }
+
 }

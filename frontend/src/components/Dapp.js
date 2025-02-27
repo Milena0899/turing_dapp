@@ -14,11 +14,12 @@ import contractAddress from "../contracts/contract-address.json";
 import { NoWalletDetected } from "./NoWalletDetected";
 import { ConnectWallet } from "./ConnectWallet";
 import { Loading } from "./Loading";
-import { Transfer } from "./Transfer";
+// import { Transfer } from "./Transfer";
 import { TransactionErrorMessage } from "./TransactionErrorMessage";
 import { WaitingForTransactionMessage } from "./WaitingForTransactionMessage";
 import { NoTokensMessage } from "./NoTokensMessage";
 import { Voting } from "./Voting";
+// import { Tabela } from "./Tabela";
 
 // This is the default id used by the Hardhat Network
 const HARDHAT_NETWORK_ID = '31337';
@@ -40,18 +41,23 @@ export class Dapp extends React.Component {
   constructor(props) {
     super(props);
 
-    // We store multiple things in Dapp's state.
-    // You don't need to follow this pattern, but it's an useful example.
     this.initialState = {
       // The info of the token (i.e. It's Name and symbol)
       tokenData: undefined,
       // The user's address and balance
       selectedAddress: undefined,
+      balance_token: undefined,
       balance: undefined,
       // The ID about transactions being sent, and any possible error with them
       txBeingSent: undefined,
       transactionError: undefined,
       networkError: undefined,
+      authorized: true,
+      usersWithBalances: [],
+      users: [],
+      votingActive: true,
+      eError: undefined,
+      codinome: undefined,
     };
 
     this.state = this.initialState;
@@ -83,9 +89,10 @@ export class Dapp extends React.Component {
 
     // If the token data or the user's balance hasn't loaded yet, we show
     // a loading component.
-    if (!this.state.tokenData || !this.state.balance) {
+    if (!this.state.tokenData || !this.state.balance_token) {
       return <Loading />;
     }
+
 
     // If everything is loaded, we render the application.
     return (
@@ -96,11 +103,7 @@ export class Dapp extends React.Component {
               {this.state.tokenData.name} ({this.state.tokenData.symbol})
             </h1>
             <p>
-              Welcome <b>{this.state.selectedAddress}</b>, you have{" "}
-              <b>
-                {this.state.balance.toString()} {this.state.tokenData.symbol}
-              </b>
-              .
+              {ethers.utils.formatEther(this.state.balance)} turings
             </p>
           </div>
         </div>
@@ -128,34 +131,104 @@ export class Dapp extends React.Component {
                 dismiss={() => this._dismissTransactionError()}
               />
             )}
+
+            {this.state.eError && (
+              <div className="alert alert-danger" role="alert">
+                {this.state.eError}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="row">
-          <div className="col-12">
-            {/*
-              If the user has no tokens, we don't show the Transfer form
-            */}
-            {this.state.balance.eq(0) && (
-              <NoTokensMessage selectedAddress={this.state.selectedAddress} />
-            )}
+          <div className="row-md-6">
+            <div className="row">
+              <div className="col-md-6 border">
+                {ethers.BigNumber.from(this.state.balance).eq(0) && (
+                  this.state.authorized ? (
+                    <NoTokensMessage selectedAddress={this.state.selectedAddress} />
+                  ) : (
+                    <NoTokensMessage selectedAddress={this.state.selectedAddress} />
+                  )
+                )}
 
-            {/*
-              This component displays a form that the user can use to send a 
-              transaction and transfer some tokens.
-              The component doesn't have logic, it just calls the transferTokens
-              callback.
-            */}
-            {this.state.balance.gt(0) && (
-              // <Transfer
-              //   transferTokens={(to, amount) =>
-              //     this._transferTokens(to, amount)
-              //   }
-              //   tokenSymbol={this.state.tokenData.symbol}
-              // />
-              <Voting />
-            )}
+                {ethers.BigNumber.from(this.state.balance) && (
+                  <Voting
+                    vote={(codinome, amount) => this._vote(codinome, amount)}
+                    issueTokens={(codinome, amount) => this._issueTokens(codinome, amount)}
+                    authorized={this.state.authorized}
+                    balance={ethers.BigNumber.from(this.state.balance)}
+                    users={this.state.users}
+                    />
+                )}
+              </div>
+
+              <div className="col-md-6 text-center border">
+                <p>
+                  Estado da votação:
+                  <span>
+                    {this.state.votingActive === true ? " Ativa" : " Desativada"}
+                  </span>
+                </p>
+                {this.state.authorized && (
+                  <div>
+                    {this.state.votingActive === true ? (
+                      <button
+                        className="btn border"
+                        style={{ fontWeight: 'bold', border: '3px solidrgb(0, 224, 244)', margin: '10px' }}
+                        onClick={async () => {
+                          const tx = await this._token.votingOff();
+                          await tx.wait();
+                          this._votingStatus();
+                        }}>
+                        Desativar Votação
+                      </button>
+                    ) : (
+                      <button
+                        className="btn border"
+                        style={{ fontWeight: 'bold', border: '3px solidrgb(17, 0, 91)', margin: '10px' }}
+                        onClick={async () => {
+                          // const tx = await this._token.votingOn();
+                          // await tx.wait();
+                          this._votingStatus();
+                        }}
+                      >
+                        Ativar Votação
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
+                {/* tabela */}
+          <div className="row-md-6">  
+              <div className="card mt-4">
+                <div className="card-header">
+                  <h5 className="text-center">Classificação</h5>
+                </div>
+                <div className="card-body p-0">
+                  <table className="table  table-bordered">
+                    <thead className="table-warning">
+                      <tr>
+                        <th className="text-center">Aluno</th>
+                        <th className="text-center">Turings</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {this.state.usersWithBalances.map((user, index) => (
+                        <tr key={index}>
+                          <td className="text-center">{user.codinome}</td>
+                          <td className="text-center">{user.balance}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>           
+          </div>
+
         </div>
       </div>
     );
@@ -167,6 +240,18 @@ export class Dapp extends React.Component {
     this._stopPollingData();
   }
 
+  async componentDidMount() {
+    this._initializeEthers();
+
+    this._token.on('RegisteredVote', (voter, amount) => {
+      this._updateBalance();
+    });
+
+    this._token.on('TokenGenerated', (admin, recipient, amount) => {
+      this._updateBalance(); 
+    });
+  }
+
   async _connectWallet() {
     // This method is run when the user clicks the Connect. It connects the
     // dapp to the user's wallet, and initializes it.
@@ -174,6 +259,11 @@ export class Dapp extends React.Component {
     // To connect to the user's wallet, we have to run this method.
     // It returns a promise that will resolve to the user's address.
     const [selectedAddress] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+
+    if (!selectedAddress) {
+      console.error("Endereço da carteira não encontrado");
+      return;
+    }
 
     // Once we have the address, we can initialize the application.
 
@@ -199,20 +289,30 @@ export class Dapp extends React.Component {
 
   _initialize(userAddress) {
     // This method initializes the dapp
-
+    
     // We first store the user's address in the component's state
-    this.setState({
-      selectedAddress: userAddress,
-    });
 
-    // Then, we initialize ethers, fetch the token's data, and start polling
-    // for the user's balance.
+    //Check if the address is not null
+    if (userAddress && ethers.utils.isAddress(userAddress)) {
+      this.setState({
+        selectedAddress: userAddress,
+      });
+  
+      // Then, we initialize ethers, fetch the token's data, and start polling
+      // for the user's balance.
 
-    // Fetching the token data and the user's balance are specific to this
-    // sample project, but you can reuse the same initialization pattern.
-    this._initializeEthers();
-    this._getTokenData();
-    this._startPollingData();
+      // Fetching the token data and the user's balance are specific to this
+      // sample project, but you can reuse the same initialization pattern.
+      this._initializeEthers();
+      this._getTokenData();
+      this._startPollingData();
+      this._admin(userAddress);
+      this._getCodinomeUser(userAddress);
+      this._getBalances();
+      this._votingStatus();
+    } else {
+      console.error("Invalid Address!!");
+    }
   }
 
   async _initializeEthers() {
@@ -237,7 +337,7 @@ export class Dapp extends React.Component {
   // initialize the app, as we do with the token data.
   _startPollingData() {
     this._pollDataInterval = setInterval(() => this._updateBalance(), 1000);
-
+    
     // We run it once immediately so we don't have to wait for it
     this._updateBalance();
   }
@@ -247,80 +347,162 @@ export class Dapp extends React.Component {
     this._pollDataInterval = undefined;
   }
 
+  async _admin(userAddress) {
+    const authorized = await this._token.isAdmin(userAddress);
+    this.setState({ authorized });
+  }
+
+  async _getCodinomeUser(userAddress) {
+    try {
+      const codinome = await this._token.getUser(userAddress);
+      this.setState({ codinome });
+    } catch (error) {
+      this.setState({ codinome: userAddress });
+    }
+  }
+
+  async _getBalances() {
+    const [codinomes, balances] = await this._token.getBalances();
+    
+    const usersWithBalances = codinomes
+    .map((codinome, index) => ({
+      codinome,
+      balance: ethers.utils.formatEther(balances[index]),
+    }))
+    .filter(user => user.balance !== '0.0');
+    
+    usersWithBalances.sort((a, b) => {
+      return parseInt(b.balance) - parseInt(a.balance); 
+    });
+    this.setState({ usersWithBalances });
+    
+    if(this.state.authorized){
+      const users = codinomes;
+      this.setState({ users });
+    } else {
+      const  users = codinomes
+      .filter(codinome => codinome !== this.state.codinome);
+      this.setState({ users });
+    }
+  }
+
+  async _votingStatus() {
+    const votingActive = await this._token.votingActive(); 
+    this.setState({ votingActive });
+  }
+
   // The next two methods just read from the contract and store the results
   // in the component state.
   async _getTokenData() {
     const name = await this._token.name();
     const symbol = await this._token.symbol();
-
     this.setState({ tokenData: { name, symbol } });
   }
 
   async _updateBalance() {
-    const balance = await this._token.balanceOf(this.state.selectedAddress);
-    this.setState({ balance });
+    const { selectedAddress } = this.state;
+  
+    if (selectedAddress && ethers.utils.isAddress(selectedAddress)) {
+      try {
+        const balance       = await this._provider.getBalance(selectedAddress);
+        const balance_token = await this._token.balanceOf(selectedAddress);
+        this.setState({
+          balance: balance.toString(),
+          balance_token,
+        });
+
+        this._getBalances(); 
+      } catch (error) {
+        console.error("Erro ao obter o saldo para o endereço:", selectedAddress, error);
+      }
+    }
   }
 
-  // This method sends an ethereum transaction to transfer tokens.
-  // While this action is specific to this application, it illustrates how to
-  // send a transaction.
-  async _transferTokens(to, amount) {
-    // Sending a transaction is a complex operation:
-    //   - The user can reject it
-    //   - It can fail before reaching the ethereum network (i.e. if the user
-    //     doesn't have ETH for paying for the tx's gas)
-    //   - It has to be mined, so it isn't immediately confirmed.
-    //     Note that some testing networks, like Hardhat Network, do mine
-    //     transactions immediately, but your dapp should be prepared for
-    //     other networks.
-    //   - It can fail once mined.
-    //
-    // This method handles all of those things, so keep reading to learn how to
-    // do it.
-
+  async _issueTokens(codinome, amount) {
     try {
-      // If a transaction fails, we save that error in the component's state.
-      // We only save one such error, so before sending a second transaction, we
-      // clear it.
       this._dismissTransactionError();
+      this._dismissEError();
 
-      // We send the transaction, and save its hash in the Dapp's state. This
-      // way we can indicate that we are waiting for it to be mined.
-      const tx = await this._token.transfer(to, amount);
-      this.setState({ txBeingSent: tx.hash });
-
-      // We use .wait() to wait for the transaction to be mined. This method
-      // returns the transaction's receipt.
-      const receipt = await tx.wait();
-
-      // The receipt, contains a status flag, which is 0 to indicate an error.
-      if (receipt.status === 0) {
-        // We can't know the exact error that made the transaction fail when it
-        // was mined, so we throw this generic one.
-        throw new Error("Transaction failed");
+      // Verifica se o valor possui mais de 18 dígitos decimais
+      const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+      if (decimalPlaces > 18) {
+        this.setState({ eError: `O valor não pode ter mais de 18 dígitos decimais (Quantidade de digitos atual: ${decimalPlaces}).` });
+        return; 
       }
 
-      // If we got here, the transaction was successful, so you may want to
-      // update your state. Here, we update the user's balance.
-      await this._updateBalance();
+      const value = ethers.utils.parseUnits(amount.toString(), 18);
+
+      const tx = await this._token.issueToken(codinome, value);
+      this.setState({ txBeingSent: tx.hash });
+      const receipt = await tx.wait();
+      if (receipt.status === 0) {
+        throw new Error("Transaction failed");
+      }
     } catch (error) {
-      // We check the error code to see if this error was produced because the
-      // user rejected a tx. If that's the case, we do nothing.
       if (error.code === ERROR_CODE_TX_REJECTED_BY_USER) {
         return;
       }
-
-      // Other errors are logged and stored in the Dapp's state. This is used to
-      // show them to the user, and for debugging.
-      console.error(error);
-      this.setState({ transactionError: error });
+      
+      if (error.reason) {
+        const match = error.reason.match(/'([^']+)'/);
+        this.setState({ eError: match[1] });
+      } else {
+        console.error(error);
+        this.setState({ transactionError: error });
+      }
     } finally {
-      // If we leave the try/catch, we aren't sending a tx anymore, so we clear
-      // this part of the state.
       this.setState({ txBeingSent: undefined });
     }
   }
 
+  async _vote(codinome, amount) {
+    try {
+      this._dismissTransactionError();
+      this._dismissEError();
+
+      if (!codinome) {
+        console.error("Codinome inválido");
+        return;
+      }
+      
+      // Verifica se o valor possui mais de 18 dígitos decimais
+      const decimalPlaces = (amount.toString().split('.')[1] || '').length;
+      if (decimalPlaces > 18) {
+        this.setState({ eError: `O valor não pode ter mais de 18 dígitos decimais (Quantidade de digitos atual: ${decimalPlaces}).` });
+        return; 
+      }
+
+      const value = ethers.utils.parseUnits(amount.toString(), 18);
+      const tx = await this._token.vote(codinome, value);
+      this.setState({ txBeingSent: tx.hash });
+
+      const receipt = await tx.wait();
+
+      if (receipt.status === 0) {
+        throw new Error("Transaction failed");
+      }
+
+    } catch (error) {
+      if (error.code === ERROR_CODE_TX_REJECTED_BY_USER) {
+        return;
+      }
+
+      if (error.reason) {
+        const match = error.reason.match(/'([^']+)'/);
+        this.setState({ eError: match[1] });
+      } else {
+        console.error(error);
+        this.setState({ transactionError: error });
+      }
+    } finally {
+      this.setState({ txBeingSent: undefined });
+    }
+  }
+
+  _dismissEError() {
+    this.setState({ eError: undefined });
+  }
+  
   // This method just clears part of the state.
   _dismissTransactionError() {
     this.setState({ transactionError: undefined });
@@ -347,7 +529,7 @@ export class Dapp extends React.Component {
   }
 
   async _switchChain() {
-    const chainIdHex = `0x${HARDHAT_NETWORK_ID.toString(16)}`
+    const chainIdHex = `0x${HARDHAT_NETWORK_ID.toString(16)}`;
     await window.ethereum.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: chainIdHex }],
@@ -358,7 +540,7 @@ export class Dapp extends React.Component {
   // This method checks if the selected network is Localhost:8545
   _checkNetwork() {
     if (window.ethereum.networkVersion !== HARDHAT_NETWORK_ID) {
-      this._switchChain();
+      this.setState();
     }
   }
 }
